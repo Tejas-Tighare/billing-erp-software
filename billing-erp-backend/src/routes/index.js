@@ -16,6 +16,8 @@ router.use("/stores", storeRoutes);
 router.get("/health", async (req, res) => {
   try {
     // 🔥 FORCE REAL DB QUERY (NOT just connect)
+    await prisma.$disconnect();
+    await prisma.$connect();
     await prisma.$queryRaw`SELECT 1`;
 
     res.json({

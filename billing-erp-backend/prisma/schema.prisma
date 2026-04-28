@@ -6,30 +6,215 @@ datasource db {
   provider = "postgresql"
 }
 
-model Store {
-  id        Int      @id @default(autoincrement())
-  name      String
-  ownerName String
-  email     String   @unique
-  phone     String
-  address   String?
+enum Role {
+  SUPER_ADMIN
+  OWNER
+  EMPLOYEE
+}
 
-  users     User[]   // 👈 add relation
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+model User {
+  id       String  @id @default(uuid())
+  name     String
+  email    String  @unique
+  password String
+  phone    String?
+  role     Role
+
+  storeId String?
+  store   Store?  @relation(fields: [storeId], references: [id])
+
+  isActive Boolean @default(true)
+
+  invoices Invoice[] @relation("UserInvoices")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  password  String
-  phone     String?
+model Store {
+  id      String  @id @default(uuid())
+  name    String
+  email   String  @unique
+  phone   String
+  address String?
 
-  storeId   Int
-  store     Store    @relation(fields: [storeId], references: [id])
+  users      User[]
+  products   Product[]
+  categories Category[]
+  invoices   Invoice[] // ✅ FIXED
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  legal        StoreLegal?
+  subscription Subscription?
+}
+
+model StoreLegal {
+  id String @id @default(uuid())
+
+  storeId String @unique
+  store   Store  @relation(fields: [storeId], references: [id])
+
+  ownerName String
+  panNumber String
+  gstNumber String?
+
+  verified Boolean @default(false)
+
+  createdAt DateTime @default(now())
+}
+
+model Subscription {
+  id String @id @default(uuid())
+
+  storeId String @unique
+  store   Store  @relation(fields: [storeId], references: [id])
+
+  planName  String
+  startDate DateTime
+  endDate   DateTime
+
+  status SubscriptionStatus
+}
+
+model Category {
+  id   String @id @default(uuid())
+  name String
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id])
+
+  products Product[]
+  types    ProductType[]
+}
+
+model ProductType {
+  id   String @id @default(uuid())
+  name String
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  products Product[]
+}
+
+model Product {
+  id String @id @default(uuid())
+
+  name        String
+  description String?
+
+  brand   String?
+  sku     String?
+  barcode String?
+
+  basePrice Float
+  costPrice Float?
+  taxRate   Float?
+
+  hasVariants Boolean @default(false)
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id])
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  typeId String?
+  type   ProductType? @relation(fields: [typeId], references: [id])
+
+  variants      ProductVariant[]
+  inventoryLogs InventoryLog[] // ✅ FIXED
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProductVariant {
+  id String @id @default(uuid())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  name String?
+
+  sku     String?
+  barcode String?
+
+  price Float
+  stock Int
+
+  attributes Json?
+
+  inventoryLogs InventoryLog[] // ✅ FIXED
+
+  createdAt DateTime @default(now())
+}
+
+model InventoryLog {
+  id String @id @default(uuid())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id])
+
+  change Int
+  reason String
+
+  createdAt DateTime @default(now())
+}
+
+model Invoice {
+  id String @id @default(uuid())
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id]) // ✅ FIXED
+
+  createdBy String
+  user      User   @relation("UserInvoices", fields: [createdBy], references: [id])
+
+  totalAmount Float
+  taxAmount   Float?
+
+  createdAt DateTime @default(now())
+
+  items    InvoiceItem[]
+  payments Payment[]
+}
+
+model InvoiceItem {
+  id String @id @default(uuid())
+
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  productId String
+  variantId String?
+
+  quantity Int
+  price    Float
+}
+
+model Payment {
+  id String @id @default(uuid())
+
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  amount Float
+  method String
+  status String
+
+  createdAt DateTime @default(now())
 }
