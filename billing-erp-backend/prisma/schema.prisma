@@ -6,6 +6,10 @@ datasource db {
   provider = "postgresql"
 }
 
+//////////////////////
+// ENUMS
+//////////////////////
+
 enum Role {
   SUPER_ADMIN
   OWNER
@@ -18,10 +22,41 @@ enum SubscriptionStatus {
   CANCELLED
 }
 
+enum InventoryReason {
+  SALE
+  PURCHASE
+  RETURN
+  DAMAGE
+  ADJUSTMENT
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+}
+
+enum PaymentStatus {
+  SUCCESS
+  PENDING
+  FAILED
+  REFUNDED
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+//////////////////////
+// USER & STORE
+//////////////////////
+
 model User {
   id       String  @id @default(uuid())
   name     String
-  email    String  @unique
+  email    String
   password String
   phone    String?
   role     Role
@@ -35,6 +70,8 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([email, storeId])
 }
 
 model Store {
@@ -44,10 +81,12 @@ model Store {
   phone   String
   address String?
 
+  isActive Boolean @default(true)
+
   users      User[]
   products   Product[]
   categories Category[]
-  invoices   Invoice[] // ✅ FIXED
+  invoices   Invoice[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -84,6 +123,10 @@ model Subscription {
   status SubscriptionStatus
 }
 
+//////////////////////
+// PRODUCT SYSTEM
+//////////////////////
+
 model Category {
   id   String @id @default(uuid())
   name String
@@ -93,6 +136,11 @@ model Category {
 
   products Product[]
   types    ProductType[]
+
+  isActive Boolean @default(true)
+
+  @@unique([storeId, name])
+  @@index([storeId])
 }
 
 model ProductType {
@@ -103,6 +151,11 @@ model ProductType {
   category   Category @relation(fields: [categoryId], references: [id])
 
   products Product[]
+
+  isActive Boolean @default(true)
+
+  @@unique([categoryId, name])
+  @@index([categoryId])
 }
 
 model Product {
@@ -115,9 +168,9 @@ model Product {
   sku     String?
   barcode String?
 
-  basePrice Float
-  costPrice Float?
-  taxRate   Float?
+  basePrice Decimal  @db.Decimal(10, 2)
+  costPrice Decimal? @db.Decimal(10, 2)
+  taxRate   Decimal? @db.Decimal(5, 2)
 
   hasVariants Boolean @default(false)
 
@@ -131,12 +184,19 @@ model Product {
   type   ProductType? @relation(fields: [typeId], references: [id])
 
   variants      ProductVariant[]
-  inventoryLogs InventoryLog[] // ✅ FIXED
+  inventoryLogs InventoryLog[]
+  invoiceItems  InvoiceItem[] // ✅ FIX ADDED
 
   isActive Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([storeId, barcode])
+  @@unique([storeId, sku])
+  @@index([storeId])
+  @@index([barcode])
+  @@index([storeId, name])
 }
 
 model ProductVariant {
@@ -150,15 +210,26 @@ model ProductVariant {
   sku     String?
   barcode String?
 
-  price Float
+  price Decimal @db.Decimal(10, 2)
   stock Int
 
   attributes Json?
 
-  inventoryLogs InventoryLog[] // ✅ FIXED
+  inventoryLogs InventoryLog[]
+  invoiceItems  InvoiceItem[] // ✅ FIX ADDED
+
+  isActive Boolean @default(true)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, barcode])
+  @@unique([productId, sku])
 }
+
+//////////////////////
+// INVENTORY
+//////////////////////
 
 model InventoryLog {
   id String @id @default(uuid())
@@ -170,27 +241,41 @@ model InventoryLog {
   variant   ProductVariant? @relation(fields: [variantId], references: [id])
 
   change Int
-  reason String
+  reason InventoryReason
 
   createdAt DateTime @default(now())
+
+  @@index([productId])
 }
+
+//////////////////////
+// BILLING
+//////////////////////
 
 model Invoice {
   id String @id @default(uuid())
 
+  invoiceNumber String @unique
+
   storeId String
-  store   Store  @relation(fields: [storeId], references: [id]) // ✅ FIXED
+  store   Store  @relation(fields: [storeId], references: [id])
 
   createdBy String
   user      User   @relation("UserInvoices", fields: [createdBy], references: [id])
 
-  totalAmount Float
-  taxAmount   Float?
+  totalAmount    Decimal  @db.Decimal(10, 2)
+  taxAmount      Decimal? @db.Decimal(10, 2)
+  discountAmount Decimal? @db.Decimal(10, 2)
+
+  status InvoiceStatus
 
   createdAt DateTime @default(now())
 
   items    InvoiceItem[]
   payments Payment[]
+
+  @@index([storeId])
+  @@index([invoiceNumber])
 }
 
 model InvoiceItem {
@@ -200,10 +285,16 @@ model InvoiceItem {
   invoice   Invoice @relation(fields: [invoiceId], references: [id])
 
   productId String
+  product   Product @relation(fields: [productId], references: [id])
+
   variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id])
 
   quantity Int
-  price    Float
+  price    Decimal  @db.Decimal(10, 2)
+  tax      Decimal? @db.Decimal(10, 2)
+
+  @@index([invoiceId])
 }
 
 model Payment {
@@ -212,9 +303,12 @@ model Payment {
   invoiceId String
   invoice   Invoice @relation(fields: [invoiceId], references: [id])
 
-  amount Float
-  method String
-  status String
+  amount Decimal @db.Decimal(10, 2)
+
+  method PaymentMethod
+  status PaymentStatus
 
   createdAt DateTime @default(now())
+
+  @@index([invoiceId])
 }
