@@ -1,25 +1,21 @@
 import { asyncHandler } from "../../utils/asyncHandler.js";
-import {
-  registerUserService,
-  loginUserService
-} from "./auth.service.js";
+import { sendResponse } from "../../utils/apiResponse.js";
+import { loginUserService } from "./auth.service.js";
 
-export const register = asyncHandler(async (req, res) => {
-  const user = await registerUserService(req.body);
+export const login = asyncHandler(async (req, res) => {
+  const result = await loginUserService(req.validatedData);
 
-  res.status(201).json({
-    success: true,
-    message: "User registered successfully",
-    data: user
+  return sendResponse({
+    res,
+    message: "Login successful",
+    data: result
   });
 });
 
-export const login = asyncHandler(async (req, res) => {
-  const result = await loginUserService(req.body);
-
-  res.json({
-    success: true,
-    message: "Login successful",
-    data: result
+export const getMe = asyncHandler(async (req, res) => {
+  return sendResponse({
+    res,
+    message: "User fetched successfully",
+    data: req.user
   });
 });

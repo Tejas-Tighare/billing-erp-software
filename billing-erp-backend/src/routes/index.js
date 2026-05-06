@@ -6,18 +6,22 @@ import prisma from "../config/prisma.js";
 
 const router = Router();
 
-// Auth routes
+// ============================
+// AUTH ROUTES
+// ============================
 router.use("/auth", authRoutes);
 
-// Store routes
+// ============================
+// STORE ROUTES
+// ============================
 router.use("/stores", storeRoutes);
 
-// ✅ FINAL HEALTH ROUTE (REAL DB CHECK)
+// ============================
+// HEALTH CHECK (DB + SERVER)
+// ============================
 router.get("/health", async (req, res) => {
   try {
-    // 🔥 FORCE REAL DB QUERY (NOT just connect)
-    await prisma.$disconnect();
-    await prisma.$connect();
+    // 🔥 FORCE REAL DB QUERY
     await prisma.$queryRaw`SELECT 1`;
 
     res.json({
@@ -43,7 +47,9 @@ router.get("/health", async (req, res) => {
   }
 });
 
-// Protected route
+// ============================
+// PROTECTED TEST ROUTE
+// ============================
 router.get("/protected", authMiddleware, (req, res) => {
   res.json({
     success: true,
